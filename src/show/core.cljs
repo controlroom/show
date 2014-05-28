@@ -12,6 +12,13 @@
   [cmap]
   (clojure.string/join " " (map first (filter #(second %) cmap))))
 
+(defn css-transition-group
+  "Create dom entrance and exit animations. Ensure that you have a unique :key
+  property set on each component/dom-element that you pass as a body"
+  [transition-name body]
+  (let [group (.. js/React -addons -CSSTransitionGroup)]
+    (group #js {:transitionName transition-name} (clj->js body))))
+
 ;; Getters and setters
 (defn get-node
   [component] (.getDOMNode component))
