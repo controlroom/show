@@ -4,8 +4,13 @@
   (:import [goog.ui IdGenerator]))
 
 ;; Utils
-(defn class-map [cmap]
-  (clojure.string/join ", " (map first (filter #(second %) cmap))))
+(defn class-map
+  "Simple helper function for quickly adding/removing classNames to components.
+  It is analgous to React's classSet helper. The map argument should be a map
+  containing a key for the className and an expression that evaluates truthy or
+  falsey."
+  [cmap]
+  (clojure.string/join " " (map first (filter #(second %) cmap))))
 
 ;; Getters and setters
 (defn get-node
