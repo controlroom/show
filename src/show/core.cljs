@@ -96,6 +96,13 @@
 (defn- local-method [component name]
   (name (.. component -props -lifecycle_methods)))
 
+(defn- local-mixins [component name]
+  (map name (filter name (.. component -props -mixins))))
+
+(defn- execute-mixin-methods [component name & props]
+  (let [mixins (local-mixins component name)]
+    (mapv #(apply % component props) mixins)))
+
 (defn- execute-local-method [component name & props]
   (if-let [local (local-method component name)]
     (apply local component props)))
@@ -112,65 +119,87 @@
 
    :getInitialState
    (fn [] (this-as this
-     (let [state (execute-local-method this :initial-state)]
-       #js {"__show" state})))
+     (let [state        (execute-local-method  this :initial-state)
+           mixin-states (execute-mixin-methods this :initial-state)]
+       #js {"__show" (merge (into {} (apply merge mixin-states)) state)})))
 
    :getDefaultProps
    (fn [] (this-as this
-     (let [props (execute-local-method this :default-props)]
+     (let [props       (execute-local-method  this :default-props)
+           mixin-props (execute-mixin-methods this :default-props)]
        ;; React will only merge prop data on the root level, and since there is
        ;; already a __show property, it does not merge new props. This is why
        ;; we dont rely on React for this merge
-       (set! (.. this -props -__show) (merge props (get-props this))))
+       (set! (.. this -props -__show)
+             (merge (merge (into {} (apply merge mixin-props)) props)
+                    (get-props this))))
      nil))
 
    :componentWillMount
    (fn [] (this-as this
-     (execute-local-method this :will-mount)))
+     (execute-mixin-methods this :will-mount)
+     (execute-local-method  this :will-mount)))
 
    :componentDidMount
    (fn [] (this-as this
-     (execute-local-method this :did-mount)))
+     (execute-mixin-methods this :did-mount)
+     (execute-local-method  this :did-mount)))
 
    :componentWillReceiveProps
    (fn [next-props] (this-as this
      (let [next-props (get-show-data next-props)]
-       (execute-local-method this :will-receive-props next-props))))
+       (execute-mixin-methods this :will-receive-props next-props)
+       (execute-local-method  this :will-receive-props next-props))))
 
    :shouldComponentUpdate
    (fn [next-props next-state] (this-as this
      (let [next-props (get-show-data next-props)
-           next-state (get-show-data next-state)]
-        ;; Need to explicitly check for the method since a nil return is
-        ;; acceptable from should-update
-        (if (local-method this :should-update)
-          (execute-local-method this :should-update next-props next-state)
-          (or (not= (get-props this) next-props)
-              (not= (get-state this) next-state))))))
+           next-state (get-show-data next-state)
+           ;; Need to explicitly check for the method since a nil return is
+           ;; acceptable from should-update
+           local-update?       (local-method this :should-update)
+           local-should-update (execute-local-method this :should-update next-props next-state)
+           mixin-update?       (not (empty? (local-mixins this :should-update)))
+           mixin-should-update (every? identity (execute-mixin-methods this :should-update next-props next-state))]
+        (cond
+          (and local-update? mixin-update?)
+            (and local-should-update mixin-should-update)
+          mixin-update?
+            mixin-should-update
+          local-update?
+            local-should-update
+          :else
+            (or (not= (get-props this) next-props)
+                (not= (get-state this) next-state))))))
 
    :componentWillUpdate
    (fn [next-props next-state] (this-as this
      (let [next-props (get-show-data next-props)
            next-state (get-show-data next-state)]
-       (execute-local-method this :will-update next-props next-state))))
+       (execute-mixin-methods this :will-update next-props next-state)
+       (execute-local-method  this :will-update next-props next-state))))
 
    :componentDidUpdate
    (fn [prev-props prev-state] (this-as this
      (let [prev-state (get-show-data prev-state)
            prev-props (get-show-data prev-props)]
-      (execute-local-method this :did-update prev-props prev-state))))
+       (execute-mixin-methods this :did-update prev-props prev-state)
+       (execute-local-method  this :did-update prev-props prev-state))))
 
    :componentWillUnmount
    (fn [] (this-as this
-     (execute-local-method this :will-unmount)))})
+     (execute-mixin-methods this :will-unmount)
+     (execute-local-method  this :will-unmount)))})
 
-(defn ^:private build-component [name lifecycle]
+(defn ^:private build-component [name lifecycle mixins]
   (let [lifecycle-methods (assoc base-lifecycle-methods :displayName name)
-        component-class   (js/React.createClass (clj->js lifecycle-methods))]
+        component-class   (js/React.createClass (clj->js lifecycle-methods))
+        mixins            (map #(.. (%) -props -lifecycle_methods) mixins)]
     (let [ret-fn (fn [props]
                    (component-class #js {:key    (get props :key)
                                          :__show (dissoc props :key)
-                                         :lifecycle_methods lifecycle}))]
+                                         :lifecycle_methods lifecycle
+                                         :mixins mixins}))]
       ;; React rejects nested children components if they return with
       ;; a different type than the default createClass type
       ;; https://github.com/facebook/react/blob/master/src/core/shouldUpdateReactComponent.js#L36
