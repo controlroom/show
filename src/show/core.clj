@@ -2,16 +2,22 @@
   (:require [clojure.set :refer [difference]]))
 
 (def valid-lifecycle-methods
-  '#{initial-state default-props will-mount did-mount
+  '#{initial-state default-props render will-mount did-mount
      will-receive-props should-update will-update did-update
      will-unmount})
+
+(defn- allow-blank-arg-list [args body]
+  (if (and (not (nil? body)) (vector? args))
+    [args body]
+    [[] (conj body args)]))
 
 ;; To allow for a little sugar, we inject the symbol passed into defclass
 ;; to be mapped to this in the final lifecycle function.
 (defn- build-lifecycle-fn [component-arg [name args & body]]
-  (let [name       (keyword name)
-        final-args (vec (concat component-arg args))]
-    (hash-map name (concat '(fn) [final-args] body))))
+  (let [name        (keyword name)
+        [args body] (allow-blank-arg-list args body)
+        final-args  (vec (concat component-arg args))]
+    (hash-map name  (concat '(fn) [final-args] body))))
 
 (defn- extract-forms [forms]
   (if (string? (first forms))
@@ -22,7 +28,6 @@
   (let [misses (difference (set (map first lifecycles)) valid-lifecycle-methods)]
     (assert (empty? misses)
             (str "Invalid lifecycle method names: ( " (clojure.string/join ", " misses) " )"))))
-
 
 (defmacro defclass
   "Defines a new React component class"
