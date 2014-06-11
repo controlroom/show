@@ -1,5 +1,5 @@
 (ns show.core
-  (:refer-clojure :exclude [reset! update! assoc!])
+  (:refer-clojure :exclude [reset! update! assoc! dissoc!])
   (:require [clojure.string])
   (:import [goog.ui IdGenerator]))
 
@@ -62,6 +62,16 @@
    (let [ks (if (sequential? ks) ks [ks])]
      (reset! component
              (assoc-in (get-state component) ks val) cb))))
+
+(defn dissoc!
+  "Dissociates an entry from the component's nested associative structure. ks
+  can be a sequence of keys. Takes optional callback function to be called when
+  the value is merged into the render state."
+  ([component ks] (dissoc! component ks nil))
+  ([component ks cb]
+   (let [ks (if (sequential? ks) ks [ks])]
+     (reset! component
+             (update-in (get-state component) (butlast ks) dissoc (last ks))))))
 
 (defn update!
   "'Updates' a value in the component's local nested associative structure,
