@@ -23,10 +23,13 @@
 (defn get-node
   [component] (.getDOMNode component))
 
+(defn- props-with-defaults [component props]
+  (merge (.. component -__show_default_props) props))
+
 (defn get-props
   "Returns the value of the components inherited nested associative structure.
   ks is an optional property that gives quick access to a get-in call"
-  ([component] (aget (.-props component) "__show"))
+  ([component] (props-with-defaults component (aget (.-props component) "__show")))
   ([component ks]
    (let [ks (if (sequential? ks) ks [ks])]
      (get-in (get-props component) ks))))
@@ -144,14 +147,13 @@
 
    :getDefaultProps
    (fn [] (this-as this
-     (let [props       (execute-local-method  this :default-props)
-           mixin-props (execute-mixin-methods this :default-props)]
+     (let [props         (execute-local-method  this :default-props)
+           mixin-props   (into {} (apply merge (execute-mixin-methods this :default-props)))
+           default-props (merge mixin-props props)]
        ;; React will only merge prop data on the root level, and since there is
        ;; already a __show property, it does not merge new props. This is why
        ;; we dont rely on React for this merge
-       (set! (.. this -props -__show)
-             (merge (merge (into {} (apply merge mixin-props)) props)
-                    (get-props this))))
+       (set! (.. this -__show_default_props) default-props))
      nil))
 
    :componentWillMount
@@ -166,13 +168,13 @@
 
    :componentWillReceiveProps
    (fn [next-props] (this-as this
-     (let [next-props (get-show-data next-props)]
+     (let [next-props (props-with-defaults this (get-show-data next-props))]
        (execute-mixin-methods this :will-receive-props next-props)
        (execute-local-method  this :will-receive-props next-props))))
 
    :shouldComponentUpdate
    (fn [next-props next-state] (this-as this
-     (let [next-props (get-show-data next-props)
+     (let [next-props (props-with-defaults this (get-show-data next-props))
            next-state (get-show-data next-state)
            ;; Need to explicitly check for the method since a nil return is
            ;; acceptable from should-update
@@ -180,20 +182,20 @@
            local-should-update (execute-local-method this :should-update next-props next-state)
            mixin-update?       (not (empty? (local-mixins this :should-update)))
            mixin-should-update (every? identity (execute-mixin-methods this :should-update next-props next-state))]
-        (cond
-          (and local-update? mixin-update?)
-            (and local-should-update mixin-should-update)
-          mixin-update?
-            mixin-should-update
-          local-update?
-            local-should-update
-          :else
-            (or (not= (get-props this) next-props)
-                (not= (get-state this) next-state))))))
+       (cond
+         (and local-update? mixin-update?)
+           (and local-should-update mixin-should-update)
+         mixin-update?
+           mixin-should-update
+         local-update?
+           local-should-update
+         :else
+           (or (not= (get-props this) next-props)
+               (not= (get-state this) next-state))))))
 
    :componentWillUpdate
    (fn [next-props next-state] (this-as this
-     (let [next-props (get-show-data next-props)
+     (let [next-props (props-with-defaults this (get-show-data next-props))
            next-state (get-show-data next-state)]
        (execute-mixin-methods this :will-update next-props next-state)
        (execute-local-method  this :will-update next-props next-state))))
@@ -201,7 +203,7 @@
    :componentDidUpdate
    (fn [prev-props prev-state] (this-as this
      (let [prev-state (get-show-data prev-state)
-           prev-props (get-show-data prev-props)]
+           prev-props (props-with-defaults this (get-show-data prev-props))]
        (execute-mixin-methods this :did-update prev-props prev-state)
        (execute-local-method  this :did-update prev-props prev-state))))
 
