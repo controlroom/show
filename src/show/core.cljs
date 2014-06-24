@@ -52,28 +52,37 @@
    (.replaceState component #js {"__show" val} cb)
    val))
 
-(defn assoc!
+(defn assoc-in!
   "Replaces a value in the component's local nested associative state, where ks
-  is a sequence of keys and val is the new value.  If any levels do not exist,
-  hash-maps will be created. Takes optional callback function to be called when
-  the value is merged into the render state"
-  ([component ks val] (assoc! component ks val nil))
-  ([component ks val cb]
-   (let [ks (if (sequential? ks) ks [ks])]
-     (reset! component
-             (assoc-in (get-state component) ks val) cb))))
+  is a sequence of keys and v is the new value. If any levels do not exist,
+  hash-maps will be created. Delegates to clojurescript's assoc-in."
+  [component ks v]
+  (reset! component
+          (assoc-in (get-state component) ks v)))
+
+(defn assoc!
+  "Replaces values in the component's local state. Delegates to clojurescript's
+  assoc"
+  ([component & kvs]
+   (reset! component
+           (apply assoc (get-state component) kvs))))
+
+(defn dissoc-in!
+  "Dissociates an entry from the component's nested associative structure. ks
+  can be a sequence of keys."
+  [component ks]
+  (let [ks (if (sequential? ks) ks [ks])]
+    (reset! component
+            (update-in (get-state component) (butlast ks) dissoc (last ks)))))
 
 (defn dissoc!
-  "Dissociates an entry from the component's nested associative structure. ks
-  can be a sequence of keys. Takes optional callback function to be called when
-  the value is merged into the render state."
-  ([component ks] (dissoc! component ks nil))
-  ([component ks cb]
-   (let [ks (if (sequential? ks) ks [ks])]
-     (reset! component
-             (update-in (get-state component) (butlast ks) dissoc (last ks))))))
+  "Dissociates entries from the component's nested associative structure. Can
+  accept multiple keys to remove. Delegates to clojurescript's dissoc"
+  [component k & ks]
+  (reset! component
+          (apply dissoc (get-state component) k ks)))
 
-(defn update!
+(defn update-in!
   "'Updates' a value in the component's local nested associative structure,
   where ks is a sequence of keys and f is a function that will take the old
   value and any supplied args and return the new value, and returns a new
