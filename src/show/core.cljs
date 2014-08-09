@@ -1,7 +1,10 @@
 (ns show.core
   (:refer-clojure :exclude [reset! update! assoc! dissoc!])
-  (:require [clojure.string])
+  (:require react
+            [clojure.string])
   (:import [goog.ui IdGenerator]))
+
+(enable-console-print!)
 
 ;; Utils
 (defn class-map
