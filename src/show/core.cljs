@@ -119,10 +119,12 @@
   (js/React.renderComponent component dom))
 
 (defn- local-method [component name]
-  (name (.. component -props -lifecycle_methods)))
+  (when-let [props (.. component -__show_base)]
+    (name (.-lifecycle_methods props))))
 
 (defn- local-mixins [component name]
-  (map name (filter name (.. component -props -mixins))))
+  (when-let [props (.. component -__show_base)]
+    (map name (filter name (.-mixins props)))))
 
 (defn- execute-mixin-methods [component name & props]
   (let [mixins (local-mixins component name)]
@@ -150,13 +152,14 @@
 
    :getDefaultProps
    (fn [] (this-as this
-     (let [props         (execute-local-method  this :default-props)
-           mixin-props   (into {} (apply merge (execute-mixin-methods this :default-props)))
+     (let [this-proto    (.-prototype this) ; Must use prototype since component is not loaded yet
+           props         (execute-local-method this-proto :default-props)
+           mixin-props   (into {} (apply merge (execute-mixin-methods this-proto :default-props)))
            default-props (merge mixin-props props)]
        ;; React will only merge prop data on the root level, and since there is
        ;; already a __show property, it does not merge new props. This is why
        ;; we dont rely on React for this merge
-       (set! (.. this -__show_default_props) default-props))
+       (set! (.. this-proto -__show_default_props) default-props))
      nil))
 
    :componentWillMount
@@ -216,16 +219,16 @@
      (execute-local-method  this :will-unmount)))})
 
 (defn ^:private build-component [name lifecycle mixins]
-  (let [lifecycle-methods (assoc base-lifecycle-methods :displayName name)
+  (let [mixins            (map #(.. % -lifecycle_methods) mixins)
+        lifecycle-methods (assoc base-lifecycle-methods
+                                 :displayName name
+                                 :__show_base #js {:lifecycle_methods lifecycle
+                                                   :mixins mixins})
+
         component-class   (js/React.createClass (clj->js lifecycle-methods))
-        mixins            (map #(.. (%) -props -lifecycle_methods) mixins)]
-    (let [ret-fn (fn [props]
-                   (component-class #js {:key    (get props :key)
-                                         :__show (dissoc props :key)
-                                         :lifecycle_methods lifecycle
-                                         :mixins mixins}))]
-      ;; React rejects nested children components if they return with
-      ;; a different type than the default createClass type
-      ;; https://github.com/facebook/react/blob/master/src/core/shouldUpdateReactComponent.js#L36
-      (set! (.-constructor ret-fn) (goog/getUid component-class))
-      ret-fn)))
+        ret-fn            #(component-class #js {:key    (get % :key)
+                                                 :__show (dissoc % :key)})]
+
+    ;; Inject lifecycle methods into the fn just for mixin loading
+    (set! (.-lifecycle_methods ret-fn) lifecycle)
+    ret-fn))
