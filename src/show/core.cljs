@@ -1,7 +1,6 @@
 (ns show.core
   (:refer-clojure :exclude [reset! update! assoc! dissoc!])
-  (:require react
-            [clojure.string])
+  (:require [clojure.string])
   (:import [goog.ui IdGenerator]))
 
 (enable-console-print!)
