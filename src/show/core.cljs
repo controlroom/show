@@ -23,7 +23,10 @@
 
 ;; Getters and setters
 (defn get-node
-  [component] (.getDOMNode component))
+  ([component] (.getDOMNode component))
+  ([component name]
+   (when-let [refs (.-refs component)]
+     (.getDOMNode (aget refs name)))))
 
 (defn- props-with-defaults [component props]
   (merge (.. component -__show_default_props) props))
