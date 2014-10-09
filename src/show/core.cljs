@@ -121,12 +121,12 @@
   (js/React.renderComponent component dom))
 
 (defn- local-method [component name]
-  (when-let [props (.. component -__show_base)]
-    (name (.-lifecycle_methods props))))
+  (when-let [props (aget component "__show_base")]
+    (name (aget props "lifecycle_methods"))))
 
 (defn- local-mixins [component name]
-  (when-let [props (.. component -__show_base)]
-    (map name (filter name (.-mixins props)))))
+  (when-let [props (aget component "__show_base")]
+    (map name (filter name (aget props "mixins")))))
 
 (defn- execute-mixin-methods [component name & props]
   (let [mixins (local-mixins component name)]
