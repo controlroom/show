@@ -1,10 +1,9 @@
-<img src="http://controlroom.io/images/show-logo.png?1234" width=300/>
+<img src="http://controlroom.io/images/show-logo.png?1235" width=300/>
 
 **Show** is a minimal ClojureScript wrapper around React.js. Show operates under
 the idea that less is more.
 
-This is still a proof of concept and is undergoing daily breaking changes, thank
-you come again.
+This is still a proof of concept and is undergoing daily breaking changes
 
 ## License
 
