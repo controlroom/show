@@ -17,11 +17,10 @@
 
 (defn tag [tag]
   `(defn ~tag [& vs#]
-     (let [vs#           (remove nil? vs#)
-           [opts# body#] (if (map? (first vs#)) [(first vs#) (rest vs#)]
-                                                [nil         vs#])
-           opts# (into {} (for [[k# v#] opts#] [k# (if (map? v#) (cljs.core.clj->js v#) v#)]))]
-       (. js/React.DOM ~tag (cljs.core.clj->js opts#) (cljs.core.clj->js body#)))))
+     (let [[opts# body#] (show.dom/process-args vs#)]
+       (. js/React.DOM ~tag
+          (cljs.core.clj->js opts#)
+          (cljs.core.clj->js body#)))))
 
 (defmacro build-tags []
   `(do ~@(clojure.core/map tag tags)))
