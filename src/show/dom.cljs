@@ -18,7 +18,10 @@
                       [(first vs) (rest vs)]
                       [nil        vs])
         opts        (into {} (for [[k v] opts]
-                               [k (if (array-map? v) (clj->js v) v)]))]
+                               [k (if (array-map? v) (clj->js v) v)]))
+        opts        (if (contains? opts :key)
+                      opts
+                      (assoc opts :key (gensym)))]
     [(process-opts opts)
      (clojure.core/map process-body body)]))
 
