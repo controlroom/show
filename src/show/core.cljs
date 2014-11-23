@@ -118,7 +118,7 @@
   "Bootstrap the component and inject it into the dom on the next render
   cycle"
   [component dom]
-  (js/React.renderComponent component dom))
+  (js/React.render component dom))
 
 (defn- local-method [component name]
   (when-let [props (aget component "__show_base")]
@@ -227,7 +227,8 @@
                                  :__show_base #js {:lifecycle_methods lifecycle
                                                    :mixins mixins})
 
-        component-class   (js/React.createClass (clj->js lifecycle-methods))
+        component-class   (js/React.createFactory
+                            (js/React.createClass (clj->js lifecycle-methods)))
         ret-fn            #(component-class #js {:key    (get % :key)
                                                  :__show (dissoc % :key)})]
 
