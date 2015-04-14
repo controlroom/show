@@ -1,5 +1,5 @@
 (ns show.dom
-  (:require [plug2.core :refer [pluggable?]])
+  ;; (:require [plug2.core :refer [pluggable?]])
   (:refer-clojure :exclude [map meta time])
   (:require-macros [show.dom :as dom]))
 
@@ -7,10 +7,12 @@
   opts)
 
 (defn process-body [body]
-  (if (pluggable? body) @body body))
+  ;; (if (pluggable? body) @body body)
+  body)
 
 (defn array-map? [o]
-  (instance? cljs.core/PersistentArrayMap o))
+  (instance? cljs.core/PersistentArrayMap o)
+  (map? o))
 
 (defn process-args [vs]
   (let [vs          (remove nil? vs)
@@ -18,10 +20,7 @@
                       [(first vs) (rest vs)]
                       [nil        vs])
         opts        (into {} (for [[k v] opts]
-                               [k (if (array-map? v) (clj->js v) v)]))
-        opts        (if (contains? opts :key)
-                      opts
-                      (assoc opts :key (gensym)))]
+                               [k (if (array-map? v) (clj->js v) v)]))]
     [(process-opts opts)
      (clojure.core/map process-body body)]))
 
