@@ -46,8 +46,8 @@
   "Returns the value of the components owned state nested associative structure.
   ks is an optional property that gives quick access to a get-in call"
   ([component]
-  (if-let [state (or (.-_pendingState component)
-                     (.-state component))]
+  (when-let [state (or (.-_pendingState component)
+                       (.-state component))]
     (aget state "__show")))
   ([component ks]
    (let [ks (if (sequential? ks) ks [ks])]
@@ -232,7 +232,7 @@
 
         component-class   (js/React.createFactory
                             (js/React.createClass (clj->js lifecycle-methods)))
-        ret-fn            #(component-class #js {:key    (get % :key)
+        ret-fn            #(component-class #js {:key    (or (get % :key) js/undefined)
                                                  :__show (dissoc % :key)})]
 
     ;; Inject lifecycle methods into the fn just for mixin loading
