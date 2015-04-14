@@ -32,8 +32,8 @@
 
 (defn- extract-forms [forms]
   (if (string? (first forms))
-    [(first forms) (second forms) (drop 2 forms)]
-    [""            (first forms)  (rest forms)]))
+    [(first forms)         (second forms) (drop 2 forms)]
+    [(gensym "component")  (first forms)  (rest forms)]))
 
 (defn- assert-lifecycles [lifecycles]
   (let [misses (difference (set (map first lifecycles))
@@ -41,13 +41,24 @@
     (assert (empty? misses)
             (str "Invalid lifecycle names: ( " (clojure.string/join ", " misses) " )"))))
 
-(defmacro defclass
-  "Defines a new React component class"
-  [name & forms]
-  (let [[docstr component lifecycles] (extract-forms forms)
+(defmacro component
+  "Build anonoymous component class"
+  [& forms]
+  (let [[n component lifecycles] (extract-forms forms)
         component-arg       (if (empty? component) ['this] component)
         [mixins lifecycles] (filter-mixins lifecycles)
         lifecycle-builder   (partial build-lifecycle component-arg)
         fn-map              (into {} (map lifecycle-builder lifecycles))]
     (assert-lifecycles lifecycles)
-    `(def ~name ~docstr (show.core/build-component ~(str name) ~fn-map ~mixins))))
+    `(show.core/build-component ~(name n) ~fn-map ~mixins)))
+
+(defn- extract-def-forms [forms]
+  (if (string? (first forms))
+    [(first forms) (rest forms)]
+    [""            forms]))
+
+(defmacro defclass
+  "Defines a new React component class"
+  [name & forms]
+  (let [[docstr component-form] (extract-def-forms forms)]
+    `(def ~name ~docstr ~`(component ~@(conj component-form (str name))))))
