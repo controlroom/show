@@ -20,9 +20,9 @@
 (defn css-transition-group
   "Create dom entrance and exit animations. Ensure that you have a unique :key
   property set on each component/dom-element that you pass as a body"
-  [transition-name body]
+  [opts body]
   (let [group (.. js/React -addons -CSSTransitionGroup)]
-    (group #js {:transitionName transition-name} (clj->js body))))
+    (group (clj->js opts) (clj->js body))))
 
 ;; Getters and setters
 (defn get-node
