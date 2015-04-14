@@ -11,7 +11,4 @@
                  [org.clojure/clojurescript "0.0-2760"]
                  [cljsjs/react "0.12.2-5"]]
 
-  :plugins [[lein-cljsbuild "1.0.4"]]
-
-
-  :plugins [[lein-cljsbuild "1.0.2"]])
+  :plugins [[lein-cljsbuild "1.0.4"]])
