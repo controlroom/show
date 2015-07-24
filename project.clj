@@ -1,4 +1,4 @@
-(defproject controlroom/show "0.5.1"
+(defproject controlroom/show "0.6.0-SNAPSHOT"
   :description "Minimal clojurescript React implementation"
   :url "http://controlroom.io/show"
 
@@ -7,8 +7,8 @@
 
   :source-paths ["src"]
 
-  :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/clojurescript "0.0-2760"]
+  :dependencies [[org.clojure/clojure "1.7.0"]
+                 [org.clojure/clojurescript "0.0-3308"]
                  [cljsjs/react "0.12.2-5"]]
 
   :plugins [[lein-cljsbuild "1.0.4"]])
