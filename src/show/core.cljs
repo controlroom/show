@@ -22,7 +22,7 @@
   property set on each component/dom-element that you pass as a body"
   [opts body]
   (let [group (.. js/React -addons -CSSTransitionGroup)]
-    (group (clj->js opts) (clj->js body))))
+    (js/React.createElement group (clj->js opts) (clj->js body))))
 
 ;; Getters and setters
 (defn get-node
