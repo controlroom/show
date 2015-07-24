@@ -1,13 +1,13 @@
 (ns show.dom
-  ;; (:require [plug2.core :refer [pluggable?]])
+  (:require [show.core :refer [class-map]])
   (:refer-clojure :exclude [map meta time])
   (:require-macros [show.dom :as dom]))
 
-(defn process-opts [opts]
-  opts)
+(defn preprocess-opts [opts]
+  (cond-> opts
+    (and (:className opts) (map? (:className opts))) (update :className class-map)))
 
 (defn process-body [body]
-  ;; (if (pluggable? body) @body body)
   body)
 
 (defn array-map? [o]
@@ -19,9 +19,9 @@
         [opts body] (if (array-map? (first vs))
                       [(first vs) (rest vs)]
                       [nil        vs])
+        opts        (preprocess-opts opts)
         opts        (into {} (for [[k v] opts]
                                [k (if (array-map? v) (clj->js v) v)]))]
-    [(process-opts opts)
-     (clojure.core/map process-body body)]))
+    [opts (clojure.core/map process-body body)]))
 
 (dom/build-tags)
