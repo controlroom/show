@@ -1,9 +1,23 @@
-<img src="http://controlroom.io/images/show-logo.png?1237" width=350/>
-
 **Show** is a minimal ClojureScript wrapper around React.js. Show operates under
 the idea that less is more.
 
-This is still a proof of concept and is undergoing daily breaking changes
+This is still a proof of concept and is undergoing breaking changes
+
+## Simple usage
+
+```clojure
+(ns simple
+  (:require [show.core :as show]
+            [show.dom :as dom]))
+
+(show/defclass App [component]
+  (render [props state]
+    (dom/h1 (:heading props)))
+
+(show/render-component
+  (Mouse {:heading "App"})
+  (.getElementById js/document "app"))
+```
 
 ## License
 
