@@ -15,7 +15,7 @@ This is still a proof of concept and is undergoing breaking changes
     (dom/h1 (:heading props)))
 
 (show/render-component
-  (Mouse {:heading "App"})
+  (App {:heading "App"})
   (.getElementById js/document "app"))
 ```
 
