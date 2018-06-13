@@ -18,7 +18,7 @@
 (defn tag [tag]
   `(defn ~tag [& vs#]
      (let [[opts# body#] (show.dom/process-args vs#)]
-       (. js/React.DOM ~tag
+       (js/React.createElement ~(str tag)
           (cljs.core.clj->js opts#)
           (cljs.core.clj->js body#)))))
 

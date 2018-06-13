@@ -22,6 +22,6 @@
         opts        (preprocess-opts opts)
         opts        (into {} (for [[k v] opts]
                                [k (if (array-map? v) (clj->js v) v)]))]
-    [opts (clojure.core/map process-body body)]))
+    [opts (seq (clojure.core/map process-body body))]))
 
 (dom/build-tags)

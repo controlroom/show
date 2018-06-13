@@ -1,12 +1,14 @@
 (ns show.core
-  (:refer-clojure :exclude [reset! update! assoc! dissoc!])
+  (:refer-clojure :exclude [reset! update! assoc! dissoc! swap!])
   (:require-macros show.core)
   (:require [clojure.string]
-            [cljsjs.react])
+            cljsjs.react
+            cljsjs.create-react-class
+            cljsjs.react.dom
+            cljsjs.react-transition-group)
   (:import [goog.ui IdGenerator]))
 
 (enable-console-print!)
-
 
 ;; Utils
 (defn class-map
@@ -17,11 +19,16 @@
   [cmap]
   (clojure.string/join " " (map first (filter #(second %) cmap))))
 
-(defn css-transition-group
+(defn transition-group
+  [opts body]
+  (let [group (.. js/ReactTransitionGroup -TransitionGroup)]
+    (js/React.createElement group (clj->js opts) (clj->js body))) )
+
+(defn css-transition
   "Create dom entrance and exit animations. Ensure that you have a unique :key
   property set on each component/dom-element that you pass as a body"
   [opts body]
-  (let [group (.. js/React -addons -CSSTransitionGroup)]
+  (let [group (.. js/ReactTransitionGroup -CSSTransition)]
     (js/React.createElement group (clj->js opts) (clj->js body))))
 
 ;; Getters and setters
@@ -103,6 +110,11 @@
     (reset! component
             (update-in (get-state component) ks #(apply f % args)))))
 
+(defn swap!
+  "Apply f over the state of the supplied component"
+  [component f]
+  (reset! component (f (get-state component))))
+
 (defn force-update!
    "Forces an update. This should only be invoked when it is known with
    certainty that we are **not** in a DOM transaction.
@@ -114,14 +126,16 @@
    This will not invoke `should-update`, but it will invoke `will-update` and
    `did-update`."
 
-  [component]
-  (.forceUpdate component))
+  ([component]
+   (.forceUpdate component))
+  ([component cb]
+   (.forceUpdate component cb)))
 
 (defn render-component
   "Bootstrap the component and inject it into the dom on the next render
   cycle"
   [component dom]
-  (js/React.render component dom))
+  (js/ReactDOM.render component dom))
 
 (defn- local-method [component name]
   (when-let [props (aget component "__show_base")]
@@ -151,8 +165,9 @@
 
    :getInitialState
    (fn [] (this-as this
-     (let [state        (execute-local-method  this :initial-state)
-           mixin-states (execute-mixin-methods this :initial-state)]
+     (let [props        (get-props this)
+           state        (execute-local-method  this :initial-state props)
+           mixin-states (execute-mixin-methods this :initial-state props)]
        #js {"__show" (merge (into {} (apply merge mixin-states)) state)})))
 
    :getDefaultProps
@@ -231,7 +246,7 @@
                                                    :mixins mixins})
 
         component-class   (js/React.createFactory
-                            (js/React.createClass (clj->js lifecycle-methods)))
+                            (js/createReactClass (clj->js lifecycle-methods)))
         ret-fn            #(component-class #js {:key    (or (get % :key) js/undefined)
                                                  :__show (dissoc % :key)})]
 
