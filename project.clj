@@ -1,4 +1,4 @@
-(defproject controlroom/show "0.7.0"
+(defproject controlroom/show "0.8.0-SNAPSHOT"
   :description "Minimal clojurescript React implementation"
   :url "http://controlroom.io/show"
 
@@ -15,5 +15,4 @@
                  [cljsjs/react-transition-group "2.3.1-0"]]
 
   :plugins [[lein-cljsbuild "1.1.7"]]
-  :cljsbuild {:builds []}
-  )
+  :cljsbuild {:builds []})
