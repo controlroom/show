@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+clj scripts/tests.clj
+node target/test/test.js

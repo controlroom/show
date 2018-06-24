@@ -1,4 +1,5 @@
-(ns show.dom)
+(ns show.dom
+  #?(:cljs (:require [react :refer [createElement]])))
 
 ;; DOM Utils
 ;;
@@ -13,14 +14,18 @@
 ;; DOM Element Creation
 ;;
 
-(defn- class-to-className [opts]
+(defn- class-to-className
+  "Allow for using :class or :className"
+  [opts]
   (if (:class opts)
     (-> opts
         (assoc :className (:class opts))
         (dissoc :class))
     opts))
 
-(defn- implicit-class-map [opts]
+(defn- implicit-class-map
+  "Delegate to class-map when a hashmap is passed in for the DOM class"
+  [opts]
   (if (and (:className opts) (map? (:className opts)))
     (update opts :className class-map)
     opts))
@@ -54,7 +59,7 @@
 
 (def element-creator
   "Top level function for creation of elements"
-  #?(:cljs js/React.createElement))
+  #?(:cljs createElement))
 
 (defn element
   "Create DOM element with tag name and any options & children"
