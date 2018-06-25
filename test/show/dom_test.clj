@@ -10,13 +10,26 @@
   (with-meta args {:js true}))
 (intern 'show.dom 'convert-to-js test-convert-to-js)
 
+(defn test-fragment [body]
+  (with-meta body {:fragment true}))
+(intern 'show.dom 'fragment test-fragment)
+
 (deftest process-args-test
   (testing "no options in arglist"
     (args-eql '("Foo")
-              [{} '("Foo")]))
+              [{} "Foo"]))
   (testing "nil options"
     (args-eql '(nil nil)
               [{} nil]))
+  (testing "passes multiple body items"
+    (args-eql '({} "foo" "bar")
+              [{} '("foo" "bar")]))
+  (testing "wraps multiple body objects in React.Fragment element"
+    (let [[_ body] (dom/process-args {} {:a :a} {:b :b})]
+      (is (:fragment (meta body)))))
+  (testing "passes along array bodies"
+    (let [[_ body] (dom/process-args {} [{:a :a} {:b :b}])]
+      (is (not (:fragment (meta body))))))
   (testing "calls 'convert-to-js on nested hashes"
     (let [[{:keys [nested-hash]} _] (dom/process-args {:nested-hash {:b "string"}})]
       (is (= (meta nested-hash) {:js true}))))
@@ -36,8 +49,8 @@
 
 (deftest element-test
   (testing "calls 'convert-to-js on opts & body"
-    (let [[_ arg1 arg2] (dom/element :noop {:foo :bar} "string")]
+    (let [[_ arg1 arg2] (dom/element :noop {:foo :bar} {:body "string"})]
       (every? #(true? (:js (meta %))) [arg1 arg2])) )
   (testing "Delegates to element-creator"
-    (is (= (dom/element :h2 {:className "foo"} "Bar")
-           ["h2" {:className "foo"} '("Bar")]))))
+    (is (= (dom/element :h2 {:className "foo"} {:body "Bar"})
+           ["h2" {:className "foo"} {:body "Bar"}]))))

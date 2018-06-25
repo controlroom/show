@@ -1,5 +1,5 @@
 (ns show.dom
-  #?(:cljs (:require [react :refer [createElement]])))
+  #?(:cljs (:require [react :refer [createElement Fragment]])))
 
 ;; DOM Utils
 ;;
@@ -45,6 +45,26 @@
   #?(:clj identity
      :cljs clj->js))
 
+(def element-creator
+  "Top level function for creation of elements"
+  #?(:cljs createElement))
+
+(defn fragment
+  "Apply all body elements into a Fragment element"
+  [body]
+  #?(:cljs (apply element-creator Fragment nil body)))
+
+(defn- process-body
+  "Utilize React.Fragment when multiple children are passed into a dom element.
+   If an array is supplied, then we pass it direct into createElement. This
+   will help with reducing the amount of key warnings"
+  [body]
+  (let [bodyct (count body)]
+    (cond
+      (= bodyct 1) (first body)
+      (> bodyct 1) (fragment body)
+      :else body)))
+
 (defn process-args
   "Massage element arguments into a format React.createElement will accept"
   [& vs]
@@ -55,16 +75,12 @@
         opts        (preprocess-opts opts)
         opts        (into {} (for [[k v] opts]
                                [k (if (array-map? v) (convert-to-js v) v)]))]
-    [opts (seq body)]))
-
-(def element-creator
-  "Top level function for creation of elements"
-  #?(:cljs createElement))
+    [opts (process-body (seq body))]))
 
 (defn element
   "Create DOM element with tag name and any options & children"
-  [tag-name & args]
-  (let [tag-string (str (name tag-name))
+  [tag & args]
+  (let [tag (if (keyword? tag) (name tag) tag)
         [opts body] (->> (apply process-args args)
                          (map convert-to-js))]
-    (element-creator tag-string opts body)))
+    (element-creator tag opts body)))
