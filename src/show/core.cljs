@@ -1,10 +1,12 @@
 (ns show.core
   (:refer-clojure :exclude [reset! update! assoc! dissoc! swap!])
+  (:require-macros show.core)
   (:require
+    [goog.object :as gobj]
     [clojure.string]
     [react :refer [createElement createFactory]]
-    [create-react-class]
-    [react-dom :refer [render]]
+    [create-react-class :as create-react-class]
+    [react-dom :refer [render findDOMNode]]
     ["react-dom/server" :refer [renderToString renderToStaticMarkup]])
   (:import [goog.ui IdGenerator]))
 
@@ -49,10 +51,10 @@
 (defn get-node
   "Get the node of the current component, or if a name is passed in,
    lookup any refs that have been declared on child dom elements"
-  ([component] (.getDOMNode component))
+  ([component] (findDOMNode component))
   ([component name]
    (when-let [refs (.-refs component)]
-     (.getDOMNode (aget refs name)))))
+     (findDOMNode (aget refs name)))))
 
 (defn- props-with-defaults [component props]
   (merge (.. component -__show_default_props) props))
@@ -77,6 +79,10 @@
   ([component ks]
    (get-in (get-state component) (ensure-sequential ks))))
 
+(defn- get-state-atom [component]
+
+  )
+
 ;; Local state management
 ;;
 (defn reset!
@@ -86,7 +92,7 @@
   ([component val]
    (reset! component val nil))
   ([component val cb]
-   (.replaceState component #js {"__show" val} cb)
+   (.setState component #js {"__show" val} cb)
    val))
 
 (defn swap!
@@ -270,6 +276,20 @@
      (execute-mixin-methods this :will-unmount)
      (execute-local-method  this :will-unmount)))})
 
+(def ^:private static-methods
+  "WIP: No context can be inferred in function call, so we will need another
+   way to get function delegation"
+  {:getDerivedStateFromProps
+   (fn [component]
+     (fn [props state]
+       (.log js/console component)
+       (println ":getDerivedStateFromProps called")))})
+
+(defn inject-static-methods [obj]
+  (doseq [[k f] static-methods]
+    (gobj/set obj (name k) (f obj)))
+  obj)
+
 (defn ^:private build-component
   "Component builder. Attaches core lifecycle methods and sets up data to allow
    for user declared lifecycle methods. Returns a function that creates a component
@@ -281,8 +301,11 @@
                                  :__show_base #js {:lifecycle_methods lifecycle
                                                    :mixins mixins})
 
-        component-class   (createFactory
-                            (create-react-class (clj->js lifecycle-methods)))
+        component-class   (-> (clj->js lifecycle-methods)
+                              create-react-class
+                              ;; inject-static-methods
+                              createFactory)
+
         creator           #(component-class #js {:key    (or (get % :key) js/undefined)
                                                  :__show (dissoc % :key)})]
 

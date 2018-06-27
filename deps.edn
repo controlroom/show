@@ -1,0 +1,9 @@
+{:deps {org.clojure/clojure {:mvn/version "1.9.0"}
+        org.clojure/clojurescript {:mvn/version "1.10.238"}
+
+        cljsjs/react {:mvn/version "16.4.0-0"}
+        cljsjs/react-dom {:mvn/version "16.4.0-0"}
+        cljsjs/create-react-class {:mvn/version "15.6.3-0"}}
+
+ :paths ["src" "test"]}
+

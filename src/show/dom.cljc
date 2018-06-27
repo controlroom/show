@@ -1,5 +1,8 @@
 (ns show.dom
-  #?(:cljs (:require [react :refer [createElement Fragment]])))
+  #?@(:cljs
+       [(:require-macros show.dom)
+        (:refer-clojure :exclude [map meta time])
+        (:require [react :refer [createElement Fragment]])]))
 
 ;; DOM Utils
 ;;
@@ -9,7 +12,7 @@
   containing a key for the className and an expression that evaluates truthy or
   falsey."
   [cmap]
-  (clojure.string/join " " (map first (filter #(second %) cmap))))
+  (clojure.string/join " " (clojure.core/map first (filter #(second %) cmap))))
 
 ;; DOM Element Creation
 ;;
@@ -82,5 +85,32 @@
   [tag & args]
   (let [tag (if (keyword? tag) (name tag) tag)
         [opts body] (->> (apply process-args args)
-                         (map convert-to-js))]
+                         (clojure.core/map convert-to-js))]
     (element-creator tag opts body)))
+
+;; Tag Helpers CLJ Macros
+;;
+#?(:clj (do
+  (def tags
+    '[a abbr address area article aside audio b base bdi bdo big blockquote body
+      br button canvas caption cite code col colgroup data datalist dd del dfn
+      div dl dt em embed fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6
+      head header hr html i iframe img input ins kbd keygen label legend li link
+      main map mark menu menuitem meta meter nav noscript object ol optgroup
+      option output p param pre progress q rp rt ruby s samp script section
+      select small source span strong style sub summary sup table tbody td
+      textarea tfoot th thead time title tr track u ul video wbr
+
+      ;; svg
+      circle g line path polyline rect svg text defs linearGradient polygon
+      radialGradient stop])
+
+  (defn tag [tag]
+    `(defn ~tag [& vs#]
+       (apply show.dom/element ~(str tag) vs#)))
+
+  (defmacro build-tags []
+    `(do ~@(clojure.core/map tag tags)))))
+
+;; Inject tags into CLJS
+#?(:cljs (show.dom/build-tags))

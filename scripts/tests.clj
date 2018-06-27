@@ -7,11 +7,10 @@
    :output-dir "target/test/out"
    :parallel-build true
    :compiler-stats true
-   :npm-deps
-     {"react" "16.4.1"
-      "react-dom" "16.4.1"
-      "react-test-renderer" "16.4.1"
-      "create-react-class" "15.6.3" }
+   :npm-deps {"react" "16.4.1"
+              "react-dom" "16.4.1"
+              "create-react-class" "15.6.3"
+              "react-test-renderer" "16.4.1"}
    :install-deps true
    :static-fns true
    ;; :verbose true
