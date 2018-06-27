@@ -11,9 +11,8 @@
               "react-dom" "16.4.1"
               "create-react-class" "15.6.3"
               "react-test-renderer" "16.4.1"}
-   :install-deps true
+   :install-deps false
    :static-fns true
-   ;; :verbose true
-   })
+   :verbose false})
 
 (System/exit 0)

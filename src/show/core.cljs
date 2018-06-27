@@ -1,8 +1,13 @@
 (ns show.core
+  "This React wrapper has a few concerns:
+     - Build React component and delegate lifecycle methods to supplied cljs functions
+     - Provide functions to update internal component state
+     - Provide render functions"
   (:refer-clojure :exclude [reset! update! assoc! dissoc! swap!])
   (:require-macros show.core)
   (:require
     [goog.object :as gobj]
+    [goog.functions :refer [debounce]]
     [clojure.string]
     [react :refer [createElement createFactory]]
     [create-react-class :as create-react-class]
@@ -69,19 +74,16 @@
   ([component ks]
    (get-in (get-props component) (ensure-sequential ks))))
 
+(defn- get-state-atom [component]
+  (gobj/get component "__show_state_atom"))
+
 (defn get-state
   "Returns the value of the components owned state nested associative structure.
   ks is an optional property that gives quick access to a get-in call"
   ([component]
-   (when-let [state (or (.-_pendingState component)
-                        (.-state component))]
-     (aget state "__show")))
+   (deref (get-state-atom component)))
   ([component ks]
    (get-in (get-state component) (ensure-sequential ks))))
-
-(defn- get-state-atom [component]
-
-  )
 
 ;; Local state management
 ;;
@@ -90,52 +92,44 @@
   current value. Takes optional callback function to be called when value is
   merged into the render state"
   ([component val]
-   (reset! component val nil))
-  ([component val cb]
-   (.setState component #js {"__show" val} cb)
-   val))
+   (cljs.core/reset! (get-state-atom component) val)))
 
 (defn swap!
   "Apply f over the state of the included component. Use this if you want
    to make multiple changes to the state of your component"
-  [component f]
-  (reset! component (f (get-state component))))
+  [component f & args]
+  (apply cljs.core/swap! (get-state-atom component) f args))
 
 (defn assoc!
   "Replaces values in the component's local state. Delegates to clojurescript's
   assoc"
-  ([component & kvs]
-   (reset! component
-           (apply assoc (get-state component) kvs))))
+  [component & kvs]
+  (apply swap! component assoc kvs))
 
 (defn assoc-in!
   "Replaces a value in the component's local nested associative state, where ks
   is a sequence of keys and v is the new value. If any levels do not exist,
   hash-maps will be created. Delegates to clojurescript's assoc-in."
   [component ks v]
-  (reset! component
-          (assoc-in (get-state component) ks v)))
+  (swap! component assoc-in ks v))
 
 (defn dissoc!
   "Dissociates entries from the component's nested associative structure. Can
   accept multiple keys to remove. Delegates to clojurescript's dissoc"
   [component k & ks]
-  (reset! component
-          (apply dissoc (get-state component) k ks)))
+  (apply swap! component dissoc k ks))
 
 (defn dissoc-in!
   "Dissociates an entry from the component's nested associative structure. ks
   can be a sequence of keys."
   [component ks]
   (let [ks (ensure-sequential ks)]
-    (reset! component
-            (update-in (get-state component) (butlast ks) dissoc (last ks)))))
+    (swap! component update-in (butlast ks) dissoc (last ks))))
 
 (defn update!
   "Update a value in the component's local show structure."
   [component k f & args]
-  (reset! component
-          (apply update (get-state component) k f args)))
+  (swap! component update k f args))
 
 (defn update-in!
   "'Updates' a value in the component's local nested associative structure,
@@ -143,9 +137,10 @@
   value and any supplied args and return the new value, and returns a new
   nested structure. If any levels do not exist, hash-maps will be created."
   [component ks f & args]
-  (reset! component
-          (update-in (get-state component) (ensure-sequential ks) #(apply f % args))))
+  (apply swap! component update-in (ensure-sequential ks) f args))
 
+;; Actions
+;;
 (defn force-update!
    "Forces an update. This should only be invoked when it is known with
    certainty that we are **not** in a DOM transaction.
@@ -191,6 +186,11 @@
 (defn- get-show-data [props]
   (aget props "__show"))
 
+(defn- setup-state-watcher [component]
+  (let [state (gobj/get component "__show_state_atom")]
+    (add-watch state :show-component-state-watcher
+      #((gobj/get component "__show_render_debouncer") component))))
+
 (def ^:private core-lifecycle-methods
   "These are the core show lifecycle methods. They are never overridden.
    If you specify a version of each method in your component declaration,
@@ -205,8 +205,13 @@
    (fn [] (this-as this
      (let [props        (get-props this)
            state        (execute-local-method  this :initial-state props)
-           mixin-states (execute-mixin-methods this :initial-state props)]
-       #js {"__show" (merge (into {} (apply merge mixin-states)) state)})))
+           mixin-states (execute-mixin-methods this :initial-state props)
+           final-state  (merge (into {} (apply merge mixin-states))
+                               state)]
+       (gobj/set this "__show_render_debouncer" (debounce #(force-update! %) 10))
+       (gobj/set this "__show_state_atom" (atom final-state))
+       (setup-state-watcher this)
+       nil)))
 
    :getDefaultProps
    (fn [] (this-as this
@@ -237,15 +242,14 @@
        (execute-local-method  this :will-receive-props next-props))))
 
    :shouldComponentUpdate
-   (fn [next-props next-state] (this-as this
+   (fn [next-props _] (this-as this
      (let [next-props (props-with-defaults this (get-show-data next-props))
-           next-state (get-show-data next-state)
            ;; Need to explicitly check for the method since a nil return is
            ;; acceptable from should-update
            local-update?       (local-method this :should-update)
-           local-should-update (execute-local-method this :should-update next-props next-state)
+           local-should-update (execute-local-method this :should-update next-props)
            mixin-update?       (not (empty? (local-mixins this :should-update)))
-           mixin-should-update (every? identity (execute-mixin-methods this :should-update next-props next-state))]
+           mixin-should-update (every? identity (execute-mixin-methods this :should-update next-props))]
        (cond
          (and local-update? mixin-update?)
            (and local-should-update mixin-should-update)
@@ -254,19 +258,18 @@
          local-update?
            local-should-update
          :else
-           (or (not= (get-props this) next-props)
-               (not= (get-state this) next-state))))))
+           (or (not= (get-props this) next-props))))))
 
    :componentWillUpdate
-   (fn [next-props next-state] (this-as this
+   (fn [next-props _] (this-as this
      (let [next-props (props-with-defaults this (get-show-data next-props))
-           next-state (get-show-data next-state)]
+           next-state (get-state this)]
        (execute-mixin-methods this :will-update next-props next-state)
        (execute-local-method  this :will-update next-props next-state))))
 
    :componentDidUpdate
-   (fn [prev-props prev-state] (this-as this
-     (let [prev-state (get-show-data prev-state)
+   (fn [prev-props _] (this-as this
+     (let [prev-state (get-state this)
            prev-props (props-with-defaults this (get-show-data prev-props))]
        (execute-mixin-methods this :did-update prev-props prev-state)
        (execute-local-method  this :did-update prev-props prev-state))))
@@ -306,8 +309,8 @@
                               ;; inject-static-methods
                               createFactory)
 
-        creator           #(component-class #js {:key    (or (get % :key) js/undefined)
-                                                 :__show (dissoc % :key)})]
+        creator           #(component-class #js {"key"    (or (get % :key) js/undefined)
+                                                 "__show" (dissoc % :key)})]
 
     ;; Inject lifecycle methods into the fn just for mixin loading
     (set! (.-lifecycle_methods creator) lifecycle)

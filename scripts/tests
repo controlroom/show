@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
 
-clj scripts/tests.clj
+clj \
+  -J-client \
+  -J-XX:+TieredCompilation \
+  -J-XX:TieredStopAtLevel=1 \
+  -J-Xverify:none \
+  -J-XX:+AggressiveOpts \
+  scripts/tests.clj
 node target/test/test.js
