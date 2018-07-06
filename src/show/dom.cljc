@@ -12,7 +12,8 @@
   containing a key for the className and an expression that evaluates truthy or
   falsey."
   [cmap]
-  (clojure.string/join " " (clojure.core/map first (filter #(second %) cmap))))
+  (if-let [clauses (seq (clojure.core/map first (filter #(second %) cmap)))]
+    (clojure.string/join " " clauses)))
 
 ;; DOM Element Creation
 ;;

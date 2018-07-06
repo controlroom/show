@@ -42,7 +42,10 @@
                 [{:className "foo"} nil]))
     (testing "nested preprocessing (class then class-map)"
       (args-eql '({:class {"Yes" true}})
-                [{:className "Yes"} nil]))))
+                [{:className "Yes"} nil]))
+    (testing "returns nil class if no classname clauses are true"
+     (args-eql '({:class {"here" false}})
+                [{:className nil} nil]))))
 
 (defn test-creator [& args] args)
 (intern 'show.dom 'element-creator test-creator)

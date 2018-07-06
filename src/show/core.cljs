@@ -9,11 +9,14 @@
     [goog.object :as gobj]
     [goog.functions :refer [debounce]]
     [clojure.string]
-    [react :refer [createElement createFactory]]
+    [react :refer [createRef createElement createFactory]]
     [create-react-class :as create-react-class]
     [react-dom :refer [render findDOMNode]]
     ["react-dom/server" :refer [renderToString renderToStaticMarkup]])
   (:import [goog.ui IdGenerator]))
+
+(defn create-ref []
+  (createRef))
 
 ;; Render functions
 ;;
@@ -129,7 +132,7 @@
 (defn update!
   "Update a value in the component's local show structure."
   [component k f & args]
-  (swap! component update k f args))
+  (apply swap! component update k f args))
 
 (defn update-in!
   "'Updates' a value in the component's local nested associative structure,
@@ -189,7 +192,9 @@
 (defn- setup-state-watcher [component]
   (let [state (gobj/get component "__show_state_atom")]
     (add-watch state :show-component-state-watcher
-      #((gobj/get component "__show_render_debouncer") component))))
+      (fn [_ _ old new]
+        (when (not= old new)
+          (.setState component #js {"state-hash" (hash new)}))))))
 
 (def ^:private core-lifecycle-methods
   "These are the core show lifecycle methods. They are never overridden.
@@ -206,9 +211,7 @@
      (let [props        (get-props this)
            state        (execute-local-method  this :initial-state props)
            mixin-states (execute-mixin-methods this :initial-state props)
-           final-state  (merge (into {} (apply merge mixin-states))
-                               state)]
-       (gobj/set this "__show_render_debouncer" (debounce #(force-update! %) 10))
+           final-state  (merge (into {} (apply merge mixin-states)) state)]
        (gobj/set this "__show_state_atom" (atom final-state))
        (setup-state-watcher this)
        nil)))
@@ -242,23 +245,27 @@
        (execute-local-method  this :will-receive-props next-props))))
 
    :shouldComponentUpdate
-   (fn [next-props _] (this-as this
+   (fn [next-props next-state] (this-as this
      (let [next-props (props-with-defaults this (get-show-data next-props))
+           prev-props (get-props this)
            ;; Need to explicitly check for the method since a nil return is
            ;; acceptable from should-update
            local-update?       (local-method this :should-update)
            local-should-update (execute-local-method this :should-update next-props)
            mixin-update?       (not (empty? (local-mixins this :should-update)))
-           mixin-should-update (every? identity (execute-mixin-methods this :should-update next-props))]
-       (cond
-         (and local-update? mixin-update?)
-           (and local-should-update mixin-should-update)
-         mixin-update?
-           mixin-should-update
-         local-update?
-           local-should-update
-         :else
-           (or (not= (get-props this) next-props))))))
+           mixin-should-update (every? identity (execute-mixin-methods this :should-update next-props))
+           should-render? (cond
+                            (and local-update? mixin-update?)
+                              (and local-should-update mixin-should-update)
+                            mixin-update?
+                              mixin-should-update
+                            local-update?
+                              local-should-update
+                            :else
+                              (or (not= prev-props next-props)
+                                  (not= (gobj/get (.-state this) "state-hash")
+                                        (gobj/get next-state "state-hash"))))]
+       should-render?)))
 
    :componentWillUpdate
    (fn [next-props _] (this-as this
