@@ -9,14 +9,15 @@ This is still a proof of concept and is undergoing breaking changes
 
 ```clojure
 (ns simple
-  (:require [show.core :as show]
-            [show.dom :as dom]))
+  (:require 
+    [show.core :as show]
+    [show.dom  :as dom]))
 
-(show/defclass App [component]
+(show/defcomponent App [component]
   (render [props state]
     (dom/h1 (:heading props)))
 
-(show/render-component
+(show/render-to-dom
   (App {:heading "App"})
   (.getElementById js/document "app"))
 ```
