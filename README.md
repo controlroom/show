@@ -1,3 +1,5 @@
+[![Clojars Project](https://img.shields.io/clojars/v/controlroom/show.svg)](https://clojars.org/controlroom/show) [![CircleCI](https://circleci.com/gh/controlroom/show.svg?style=svg)](https://circleci.com/gh/controlroom/show)
+
 **Show** is a minimal ClojureScript wrapper around React.js. Show operates under
 the idea that less is more.
 
