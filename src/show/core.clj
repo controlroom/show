@@ -1,12 +1,12 @@
 (ns show.core
   (:require [clojure.set :refer [difference union]]))
 
-(def valid-lifecycle-fns
+(def ^:private valid-lifecycle-fns
   '#{initial-state default-props render will-mount did-mount
      will-receive-props should-update will-update did-update
      will-unmount})
 
-(def valid-lifecycle-props
+(def ^:private valid-lifecycle-props
   '#{mixins})
 
 (defn- allow-blank-arg-list [args body]
@@ -57,8 +57,8 @@
     [(first forms) (rest forms)]
     [""            forms]))
 
-(defmacro defclass
-  "Defines a new React component class"
+(defmacro defcomponent
+  "Defines a fn to create a React component"
   [name & forms]
   (let [[docstr component-form] (extract-def-forms forms)]
     `(def ~name ~docstr ~`(component ~@(conj component-form (str name))))))

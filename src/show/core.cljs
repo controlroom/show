@@ -1,104 +1,138 @@
 (ns show.core
+  "This React wrapper has a few concerns:
+     - Build React component and delegate lifecycle methods to supplied cljs functions
+     - Provide functions to update internal component state
+     - Provide render functions"
   (:refer-clojure :exclude [reset! update! assoc! dissoc! swap!])
   (:require-macros show.core)
-  (:require [clojure.string]
-            cljsjs.react
-            cljsjs.create-react-class
-            cljsjs.react.dom
-            cljsjs.react-transition-group)
+  (:require
+    [goog.object :as gobj]
+    [goog.functions :refer [debounce]]
+    [clojure.string]
+    [react :refer [createRef createElement createFactory]]
+    [create-react-class :as create-react-class]
+    [react-dom :refer [render findDOMNode]]
+    ["react-dom/server" :refer [renderToString renderToStaticMarkup]])
   (:import [goog.ui IdGenerator]))
 
-(enable-console-print!)
+(defn create-ref []
+  (createRef))
 
-;; Utils
-(defn class-map
-  "Simple helper function for quickly adding/removing classNames to components.
-  It is analgous to React's classSet helper. The map argument should be a map
-  containing a key for the className and an expression that evaluates truthy or
-  falsey."
-  [cmap]
-  (clojure.string/join " " (map first (filter #(second %) cmap))))
+;; Render functions
+;;
+(defn render-to-string
+  "Render a React element to its initial HTML"
+  [element]
+  (renderToString element))
 
-(defn transition-group
-  [opts body]
-  (let [group (.. js/ReactTransitionGroup -TransitionGroup)]
-    (js/React.createElement group (clj->js opts) (clj->js body))) )
+(defn render-to-static-markup
+  "Render a React element to its initial HTML, except this doesn’t create
+   extra DOM attributes that React uses internally"
+  [element]
+  (renderToStaticMarkup element))
 
-(defn css-transition
-  "Create dom entrance and exit animations. Ensure that you have a unique :key
-  property set on each component/dom-element that you pass as a body"
-  [opts body]
-  (let [group (.. js/ReactTransitionGroup -CSSTransition)]
-    (js/React.createElement group (clj->js opts) (clj->js body))))
+(defn render-to-dom
+  "Bootstrap the component and inject it into the dom on the next render
+  cycle"
+  [component dom]
+  (render component dom))
+
+;; Alias for backwards compat
+(def render-component render-to-dom)
+
+;; Transitions
+;;
+;; (defn transition-group
+;;   [opts body]
+;;   (let [group (.. js/ReactTransitionGroup -TransitionGroup)]
+;;     (createElement group (clj->js opts) (clj->js body))) )
+;;
+;; (defn css-transition
+;;   "Create dom entrance and exit animations. Ensure that you have a unique :key
+;;   property set on each component/dom-element that you pass as a body"
+;;   [opts body]
+;;   (let [group (.. js/ReactTransitionGroup -CSSTransition)]
+;;     (createElement group (clj->js opts) (clj->js body))))
 
 ;; Getters and setters
+;;
 (defn get-node
-  ([component] (.getDOMNode component))
+  "Get the node of the current component, or if a name is passed in,
+   lookup any refs that have been declared on child dom elements"
+  ([component] (findDOMNode component))
   ([component name]
    (when-let [refs (.-refs component)]
-     (.getDOMNode (aget refs name)))))
+     (findDOMNode (aget refs name)))))
 
 (defn- props-with-defaults [component props]
   (merge (.. component -__show_default_props) props))
+
+(defn- ensure-sequential [ks]
+  (if (sequential? ks) ks [ks]))
 
 (defn get-props
   "Returns the value of the components inherited nested associative structure.
   ks is an optional property that gives quick access to a get-in call"
   ([component] (props-with-defaults component (aget (.-props component) "__show")))
   ([component ks]
-   (let [ks (if (sequential? ks) ks [ks])]
-     (get-in (get-props component) ks))))
+   (get-in (get-props component) (ensure-sequential ks))))
+
+(defn- get-state-atom [component]
+  (gobj/get component "__show_state_atom"))
 
 (defn get-state
   "Returns the value of the components owned state nested associative structure.
   ks is an optional property that gives quick access to a get-in call"
   ([component]
-  (when-let [state (or (.-_pendingState component)
-                       (.-state component))]
-    (aget state "__show")))
+   (deref (get-state-atom component)))
   ([component ks]
-   (let [ks (if (sequential? ks) ks [ks])]
-     (get-in (get-state component) ks))))
+   (get-in (get-state component) (ensure-sequential ks))))
 
+;; Local state management
+;;
 (defn reset!
   "Sets the new value of the components state to val without regard to the
   current value. Takes optional callback function to be called when value is
   merged into the render state"
   ([component val]
-   (reset! component val nil))
-  ([component val cb]
-   (.replaceState component #js {"__show" val} cb)
-   val))
+   (cljs.core/reset! (get-state-atom component) val)))
+
+(defn swap!
+  "Apply f over the state of the included component. Use this if you want
+   to make multiple changes to the state of your component"
+  [component f & args]
+  (apply cljs.core/swap! (get-state-atom component) f args))
+
+(defn assoc!
+  "Replaces values in the component's local state. Delegates to clojurescript's
+  assoc"
+  [component & kvs]
+  (apply swap! component assoc kvs))
 
 (defn assoc-in!
   "Replaces a value in the component's local nested associative state, where ks
   is a sequence of keys and v is the new value. If any levels do not exist,
   hash-maps will be created. Delegates to clojurescript's assoc-in."
   [component ks v]
-  (reset! component
-          (assoc-in (get-state component) ks v)))
-
-(defn assoc!
-  "Replaces values in the component's local state. Delegates to clojurescript's
-  assoc"
-  ([component & kvs]
-   (reset! component
-           (apply assoc (get-state component) kvs))))
-
-(defn dissoc-in!
-  "Dissociates an entry from the component's nested associative structure. ks
-  can be a sequence of keys."
-  [component ks]
-  (let [ks (if (sequential? ks) ks [ks])]
-    (reset! component
-            (update-in (get-state component) (butlast ks) dissoc (last ks)))))
+  (swap! component assoc-in ks v))
 
 (defn dissoc!
   "Dissociates entries from the component's nested associative structure. Can
   accept multiple keys to remove. Delegates to clojurescript's dissoc"
   [component k & ks]
-  (reset! component
-          (apply dissoc (get-state component) k ks)))
+  (apply swap! component dissoc k ks))
+
+(defn dissoc-in!
+  "Dissociates an entry from the component's nested associative structure. ks
+  can be a sequence of keys."
+  [component ks]
+  (let [ks (ensure-sequential ks)]
+    (swap! component update-in (butlast ks) dissoc (last ks))))
+
+(defn update!
+  "Update a value in the component's local show structure."
+  [component k f & args]
+  (apply swap! component update k f args))
 
 (defn update-in!
   "'Updates' a value in the component's local nested associative structure,
@@ -106,15 +140,10 @@
   value and any supplied args and return the new value, and returns a new
   nested structure. If any levels do not exist, hash-maps will be created."
   [component ks f & args]
-  (let [ks (if (sequential? ks) ks [ks])]
-    (reset! component
-            (update-in (get-state component) ks #(apply f % args)))))
+  (apply swap! component update-in (ensure-sequential ks) f args))
 
-(defn swap!
-  "Apply f over the state of the supplied component"
-  [component f]
-  (reset! component (f (get-state component))))
-
+;; Actions
+;;
 (defn force-update!
    "Forces an update. This should only be invoked when it is known with
    certainty that we are **not** in a DOM transaction.
@@ -131,32 +160,46 @@
   ([component cb]
    (.forceUpdate component cb)))
 
-(defn render-component
-  "Bootstrap the component and inject it into the dom on the next render
-  cycle"
-  [component dom]
-  (js/ReactDOM.render component dom))
-
-(defn- local-method [component name]
+;; Lifecycle helpers
+;;
+(defn- local-method
+  "Extract declared component function for lifecycle method"
+  [component name]
   (when-let [props (aget component "__show_base")]
     (name (aget props "lifecycle_methods"))))
 
-(defn- local-mixins [component name]
+(defn- local-mixins
+  "Extract declared mixin functions for lifecycle method"
+  [component name]
   (when-let [props (aget component "__show_base")]
     (map name (filter name (aget props "mixins")))))
 
-(defn- execute-mixin-methods [component name & props]
+(defn- execute-mixin-methods
+  "Apply state & props to all declared mixin methods for lifecycle"
+  [component name & props]
   (let [mixins (local-mixins component name)]
     (mapv #(apply % component props) mixins)))
 
-(defn- execute-local-method [component name & props]
+(defn- execute-local-method
+  "Apply state & props to supplied function for lifecycle"
+  [component name & props]
   (if-let [local (local-method component name)]
     (apply local component props)))
 
-(defn get-show-data [props]
+(defn- get-show-data [props]
   (aget props "__show"))
 
-(def base-lifecycle-methods
+(defn- setup-state-watcher [component]
+  (let [state (gobj/get component "__show_state_atom")]
+    (add-watch state :show-component-state-watcher
+      (fn [_ _ old new]
+        (when (not= old new)
+          (.setState component #js {"state-hash" (hash new)}))))))
+
+(def ^:private core-lifecycle-methods
+  "These are the core show lifecycle methods. They are never overridden.
+   If you specify a version of each method in your component declaration,
+   then it will delegate to that method from within the function call in core"
   {:render
    (fn [] (this-as this
      (let [props (get-props this)
@@ -167,8 +210,11 @@
    (fn [] (this-as this
      (let [props        (get-props this)
            state        (execute-local-method  this :initial-state props)
-           mixin-states (execute-mixin-methods this :initial-state props)]
-       #js {"__show" (merge (into {} (apply merge mixin-states)) state)})))
+           mixin-states (execute-mixin-methods this :initial-state props)
+           final-state  (merge (into {} (apply merge mixin-states)) state)]
+       (gobj/set this "__show_state_atom" (atom final-state))
+       (setup-state-watcher this)
+       nil)))
 
    :getDefaultProps
    (fn [] (this-as this
@@ -201,34 +247,36 @@
    :shouldComponentUpdate
    (fn [next-props next-state] (this-as this
      (let [next-props (props-with-defaults this (get-show-data next-props))
-           next-state (get-show-data next-state)
+           prev-props (get-props this)
            ;; Need to explicitly check for the method since a nil return is
            ;; acceptable from should-update
            local-update?       (local-method this :should-update)
-           local-should-update (execute-local-method this :should-update next-props next-state)
+           local-should-update (execute-local-method this :should-update next-props)
            mixin-update?       (not (empty? (local-mixins this :should-update)))
-           mixin-should-update (every? identity (execute-mixin-methods this :should-update next-props next-state))]
-       (cond
-         (and local-update? mixin-update?)
-           (and local-should-update mixin-should-update)
-         mixin-update?
-           mixin-should-update
-         local-update?
-           local-should-update
-         :else
-           (or (not= (get-props this) next-props)
-               (not= (get-state this) next-state))))))
+           mixin-should-update (every? identity (execute-mixin-methods this :should-update next-props))
+           should-render? (cond
+                            (and local-update? mixin-update?)
+                              (and local-should-update mixin-should-update)
+                            mixin-update?
+                              mixin-should-update
+                            local-update?
+                              local-should-update
+                            :else
+                              (or (not= prev-props next-props)
+                                  (not= (gobj/get (.-state this) "state-hash")
+                                        (gobj/get next-state "state-hash"))))]
+       should-render?)))
 
    :componentWillUpdate
-   (fn [next-props next-state] (this-as this
+   (fn [next-props _] (this-as this
      (let [next-props (props-with-defaults this (get-show-data next-props))
-           next-state (get-show-data next-state)]
+           next-state (get-state this)]
        (execute-mixin-methods this :will-update next-props next-state)
        (execute-local-method  this :will-update next-props next-state))))
 
    :componentDidUpdate
-   (fn [prev-props prev-state] (this-as this
-     (let [prev-state (get-show-data prev-state)
+   (fn [prev-props _] (this-as this
+     (let [prev-state (get-state this)
            prev-props (props-with-defaults this (get-show-data prev-props))]
        (execute-mixin-methods this :did-update prev-props prev-state)
        (execute-local-method  this :did-update prev-props prev-state))))
@@ -238,18 +286,39 @@
      (execute-mixin-methods this :will-unmount)
      (execute-local-method  this :will-unmount)))})
 
-(defn ^:private build-component [name lifecycle mixins]
+(def ^:private static-methods
+  "WIP: No context can be inferred in function call, so we will need another
+   way to get function delegation"
+  {:getDerivedStateFromProps
+   (fn [component]
+     (fn [props state]
+       (.log js/console component)
+       (println ":getDerivedStateFromProps called")))})
+
+(defn inject-static-methods [obj]
+  (doseq [[k f] static-methods]
+    (gobj/set obj (name k) (f obj)))
+  obj)
+
+(defn ^:private build-component
+  "Component builder. Attaches core lifecycle methods and sets up data to allow
+   for user declared lifecycle methods. Returns a function that creates a component
+   based on the supplied lifecycle method hashmap"
+  [name lifecycle mixins]
   (let [mixins            (map #(.. % -lifecycle_methods) mixins)
-        lifecycle-methods (assoc base-lifecycle-methods
+        lifecycle-methods (assoc core-lifecycle-methods
                                  :displayName name
                                  :__show_base #js {:lifecycle_methods lifecycle
                                                    :mixins mixins})
 
-        component-class   (js/React.createFactory
-                            (js/createReactClass (clj->js lifecycle-methods)))
-        ret-fn            #(component-class #js {:key    (or (get % :key) js/undefined)
-                                                 :__show (dissoc % :key)})]
+        component-class   (-> (clj->js lifecycle-methods)
+                              create-react-class
+                              ;; inject-static-methods
+                              createFactory)
+
+        creator           #(component-class #js {"key"    (or (get % :key) js/undefined)
+                                                 "__show" (dissoc % :key)})]
 
     ;; Inject lifecycle methods into the fn just for mixin loading
-    (set! (.-lifecycle_methods ret-fn) lifecycle)
-    ret-fn))
+    (set! (.-lifecycle_methods creator) lifecycle)
+    creator))
