@@ -1,4 +1,4 @@
-(defproject controlroom/show "0.8.0-SNAPSHOT"
+(defproject controlroom/show "0.8.0"
   :description "Minimal clojurescript React implementation"
   :url "http://controlroom.io/show"
 
